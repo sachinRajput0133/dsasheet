@@ -1,0 +1,17 @@
+aws_region        = "ap-south-1"
+app_name          = "dsasheet"
+ec2_instance_type = "t2.medium"
+ec2_key_name      = "dsasheet-key"
+
+# Paste your public key: cat ~/.ssh/id_rsa.pub
+ec2_public_key = "ssh-rsa AAAA..."
+
+# MongoDB Atlas connection string (from .env)
+mongodb_uri = "mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/dsasheet?retryWrites=true&w=majority"
+
+# Generate with: openssl rand -hex 32
+jwt_access_secret  = "replace-with-strong-random-secret"
+jwt_refresh_secret = "replace-with-different-strong-random-secret"
+
+# Your app's domain (or CloudFront domain after first deploy)
+cors_origin = "https://xxxx.cloudfront.net"

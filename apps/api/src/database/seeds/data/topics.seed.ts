@@ -1,0 +1,18 @@
+export const TOPICS_SEED = [
+  { title: 'Arrays & Hashing', description: 'Fundamental array manipulation and hash map techniques', order: 1 },
+  { title: 'Two Pointers', description: 'Efficient linear traversal using two pointer approach', order: 2 },
+  { title: 'Sliding Window', description: 'Contiguous subarray/substring problems', order: 3 },
+  { title: 'Stack', description: 'Stack-based problems and monotonic stack patterns', order: 4 },
+  { title: 'Binary Search', description: 'Divide and conquer on sorted data', order: 5 },
+  { title: 'Linked List', description: 'Singly and doubly linked list operations', order: 6 },
+  { title: 'Trees', description: 'Binary trees, BST, DFS and BFS traversals', order: 7 },
+  { title: 'Tries', description: 'Prefix tree data structure and applications', order: 8 },
+  { title: 'Heap / Priority Queue', description: 'Min-heap, max-heap and top-K problems', order: 9 },
+  { title: 'Backtracking', description: 'Exhaustive search with pruning', order: 10 },
+  { title: 'Graphs', description: 'BFS, DFS, Dijkstra, Union-Find and topology sort', order: 11 },
+  { title: 'Dynamic Programming', description: '1D and 2D DP patterns', order: 12 },
+  { title: 'Greedy', description: 'Locally optimal choices for global optimum', order: 13 },
+  { title: 'Intervals', description: 'Merge, insert and non-overlapping interval problems', order: 14 },
+  { title: 'Bit Manipulation', description: 'XOR tricks, bit masks and shifts', order: 15 },
+  { title: 'Math & Geometry', description: 'Prime sieves, matrix rotation, fast power', order: 16 },
+];

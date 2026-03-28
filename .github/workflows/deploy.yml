@@ -1,0 +1,191 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'What to deploy'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - web-only
+          - api-only
+
+env:
+  AWS_REGION: ap-south-1
+
+jobs:
+  # ─── Deploy Frontend ──────────────────────────────────────────────────────────
+  deploy-web:
+    name: Deploy Web (S3 + CloudFront + EC2)
+    runs-on: ubuntu-latest
+    environment: Dev
+    if: github.event_name == 'push' || inputs.deploy_target == 'both' || inputs.deploy_target == 'web-only'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build web image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            -t $ECR_REGISTRY/dsasheet-web:$IMAGE_TAG \
+            -t $ECR_REGISTRY/dsasheet-web:latest \
+            .
+
+      - name: Extract static files from image and sync to S3
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker create --name web-extract $ECR_REGISTRY/dsasheet-web:$IMAGE_TAG
+          docker cp web-extract:/app/apps/web/.next/static ./next-static
+          docker rm web-extract
+          aws s3 sync next-static s3://${{ secrets.S3_BUCKET }}/_next/static \
+            --cache-control "public,max-age=31536000,immutable" \
+            --delete
+
+      - name: Push web image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/dsasheet-web:$IMAGE_TAG
+          docker push $ECR_REGISTRY/dsasheet-web:latest
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Copy configs to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: docker-compose.yml,docker/nginx/nginx.conf
+          target: /home/ec2-user/dsasheet/
+
+      - name: Deploy web container to EC2
+        uses: appleboy/ssh-action@v1
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION
+          script: |
+            set -e
+            aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin $ECR_REGISTRY
+            sudo systemctl stop nginx 2>/dev/null || true
+            docker pull $ECR_REGISTRY/dsasheet-web:$IMAGE_TAG
+            cd /home/ec2-user/dsasheet
+            sed -i "s|dsasheet-web:.*|dsasheet-web:$IMAGE_TAG|" docker-compose.yml
+            docker compose up -d --no-deps --force-recreate web
+            docker compose up -d nginx
+            docker image prune -f
+            echo "✅ Web deployed: $IMAGE_TAG"
+
+  # ─── Deploy API ───────────────────────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API (ECR + EC2)
+    runs-on: ubuntu-latest
+    environment: Dev
+    if: github.event_name == 'push' || inputs.deploy_target == 'both' || inputs.deploy_target == 'api-only'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push API image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/api/Dockerfile \
+            -t $ECR_REGISTRY/dsasheet-api:$IMAGE_TAG \
+            -t $ECR_REGISTRY/dsasheet-api:latest \
+            .
+          docker push $ECR_REGISTRY/dsasheet-api:$IMAGE_TAG
+          docker push $ECR_REGISTRY/dsasheet-api:latest
+
+      - name: Copy configs to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: docker-compose.yml,docker/nginx/nginx.conf
+          target: /home/ec2-user/dsasheet/
+
+      - name: Deploy API container to EC2
+        uses: appleboy/ssh-action@v1
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION
+          script: |
+            set -e
+            aws ecr get-login-password --region $AWS_REGION | \
+              docker login --username AWS --password-stdin $ECR_REGISTRY
+
+            # Refresh secrets from SSM into .env
+            sudo mkdir -p /home/ec2-user/dsasheet
+            sudo chown ec2-user:ec2-user /home/ec2-user/dsasheet
+            aws ssm get-parameters \
+              --region $AWS_REGION \
+              --names /dsasheet/MONGODB_URI /dsasheet/JWT_ACCESS_SECRET /dsasheet/JWT_REFRESH_SECRET /dsasheet/CORS_ORIGIN \
+              --with-decryption \
+              --query "Parameters[*].[Name,Value]" \
+              --output text | awk '{gsub("/dsasheet/","",$1); print $1"="$2}' \
+              > /home/ec2-user/dsasheet/.env
+            echo "API_PORT=3001" >> /home/ec2-user/dsasheet/.env
+            echo "NODE_ENV=production" >> /home/ec2-user/dsasheet/.env
+
+            sudo systemctl stop nginx 2>/dev/null || true
+            docker pull $ECR_REGISTRY/dsasheet-api:$IMAGE_TAG
+            cd /home/ec2-user/dsasheet
+            sed -i "s|dsasheet-api:.*|dsasheet-api:$IMAGE_TAG|" docker-compose.yml
+            docker compose up -d --no-deps --force-recreate api
+            docker compose up -d nginx
+            docker image prune -f
+            echo "✅ API deployed: $IMAGE_TAG"
