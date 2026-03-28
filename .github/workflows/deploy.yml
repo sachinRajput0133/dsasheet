@@ -105,7 +105,8 @@ jobs:
             docker pull $ECR_REGISTRY/dsasheet-web:$IMAGE_TAG
             cd /home/ec2-user/dsasheet
             sed -i "s|dsasheet-web:.*|dsasheet-web:$IMAGE_TAG|" docker-compose.yml
-            docker compose up -d --no-deps --force-recreate web
+            docker compose rm -sf web 2>/dev/null || true
+            docker compose up -d --no-deps web
             docker compose up -d nginx
             docker image prune -f
             echo "✅ Web deployed: $IMAGE_TAG"
@@ -185,7 +186,8 @@ jobs:
             docker pull $ECR_REGISTRY/dsasheet-api:$IMAGE_TAG
             cd /home/ec2-user/dsasheet
             sed -i "s|dsasheet-api:.*|dsasheet-api:$IMAGE_TAG|" docker-compose.yml
-            docker compose up -d --no-deps --force-recreate api
+            docker compose rm -sf api 2>/dev/null || true
+            docker compose up -d --no-deps api
             docker compose up -d nginx
             docker image prune -f
             echo "✅ API deployed: $IMAGE_TAG"
