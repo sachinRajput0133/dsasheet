@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSAsheet — AWS Architecture for a Layman</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 1.6rem; color: #f8fafc; text-align: center; margin-bottom: 6px; }
+  .tagline { text-align: center; color: #94a3b8; font-size: 0.9rem; margin-bottom: 32px; }
+
+  /* ── Layout ──────────────────────────────────── */
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ── Boxes ───────────────────────────────────── */
+  .box {
+    border-radius: 12px;
+    padding: 14px 20px;
+    width: 100%;
+    position: relative;
+  }
+  .box-title {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .box-desc { font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; }
+  .box-tag {
+    font-size: 0.7rem;
+    background: rgba(255,255,255,0.12);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ── Colors ──────────────────────────────────── */
+  .internet   { background: #1e293b; border: 1px solid #334155; }
+  .cloudfront { background: #1e3a5f; border: 1px solid #2563eb; }
+  .s3         { background: #1e3a5f; border: 1px solid #3b82f6; }
+  .route53    { background: #1e3a5f; border: 1px solid #60a5fa; }
+  .ec2        { background: #1a3a2a; border: 1px solid #16a34a; }
+  .nginx      { background: #2a2a1a; border: 1px solid #ca8a04; }
+  .nestjs     { background: #2a1a1a; border: 1px solid #dc2626; }
+  .nextjs     { background: #1a1a2a; border: 1px solid #7c3aed; }
+  .mongo      { background: #1a2a1a; border: 1px solid #22c55e; }
+  .github     { background: #1e1e1e; border: 1px solid #6366f1; }
+  .ecr        { background: #1e293b; border: 1px solid #f59e0b; }
+
+  /* ── AWS Group ───────────────────────────────── */
+  .aws-group {
+    border: 1.5px dashed #f59e0b;
+    border-radius: 16px;
+    padding: 16px;
+    width: 100%;
+    position: relative;
+    margin: 4px 0;
+  }
+  .aws-label {
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #0f172a;
+    padding: 0 8px;
+    font-size: 0.72rem;
+    color: #f59e0b;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .ec2-group {
+    border: 1.5px dashed #16a34a;
+    border-radius: 12px;
+    padding: 14px;
+    width: 100%;
+    position: relative;
+    margin-top: 10px;
+  }
+  .ec2-label {
+    position: absolute;
+    top: -11px;
+    left: 14px;
+    background: #0f172a;
+    padding: 0 8px;
+    font-size: 0.7rem;
+    color: #16a34a;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ── Row helpers ─────────────────────────────── */
+  .row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  .row .box { flex: 1; }
+
+  /* ── Arrow ───────────────────────────────────── */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 2px 0;
+  }
+  .arrow-line {
+    width: 2px;
+    height: 24px;
+    background: linear-gradient(to bottom, #475569, #64748b);
+  }
+  .arrow-tip {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #64748b;
+  }
+  .arrow-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: -2px;
+    letter-spacing: 0.04em;
+  }
+  .arrow-both .arrow-line-top {
+    width: 2px; height: 12px;
+    background: #475569;
+  }
+
+  /* ── Annotation ──────────────────────────────── */
+  .annotation {
+    margin-top: 24px;
+    max-width: 860px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .annotation h2 {
+    font-size: 1.1rem;
+    color: #f8fafc;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 14px;
+    border: 1px solid #334155;
+  }
+  .card .icon { font-size: 1.4rem; margin-bottom: 6px; }
+  .card h3 { font-size: 0.9rem; color: #f1f5f9; margin-bottom: 4px; }
+  .card p  { font-size: 0.78rem; color: #94a3b8; line-height: 1.5; }
+
+  /* ── Flow section ────────────────────────────── */
+  .flow {
+    max-width: 860px;
+    margin: 0 auto 32px;
+  }
+  .flow h2 {
+    font-size: 1.1rem;
+    color: #f8fafc;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .step-num {
+    width: 26px; height: 26px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+  .step-body h4 { font-size: 0.88rem; color: #f1f5f9; margin-bottom: 2px; }
+  .step-body p  { font-size: 0.78rem; color: #94a3b8; line-height: 1.4; }
+
+  .badge { display: inline-block; background: #334155; border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; font-family: monospace; color: #93c5fd; margin: 1px; }
+</style>
+</head>
+<body>
+
+<h1>🏗️ DSAsheet — AWS Architecture Explained Simply</h1>
+<p class="tagline">What happens when 1,000,000 users visit your app</p>
+
+<!-- ────────────── ARCHITECTURE DIAGRAM ────────────── -->
+<div class="diagram">
+
+  <!-- INTERNET -->
+  <div class="box internet" style="text-align:center">
+    <div class="box-title" style="justify-content:center">🌍 &nbsp;You — the user — opens the browser</div>
+    <div class="box-desc" style="text-align:center">Types <strong>dsasheet.com</strong> · could be anywhere in the world</div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line"></div>
+    <div class="arrow-tip"></div>
+    <div class="arrow-label">DNS lookup</div>
+  </div>
+
+  <!-- AWS GROUP -->
+  <div class="aws-group">
+    <div class="aws-label">☁️ AWS Cloud</div>
+
+    <!-- Route 53 -->
+    <div class="box route53">
+      <div class="box-title">🗺️ Route 53 &nbsp;<span class="box-tag">DNS</span></div>
+      <div class="box-desc">Like a phone book. Translates "dsasheet.com" into the real IP address of the server. Runs in Amazon's backbone — extremely fast and reliable.</div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-tip"></div>
+      <div class="arrow-label">routes to</div>
+    </div>
+
+    <!-- CloudFront + S3 row -->
+    <div class="row">
+      <div class="box cloudfront">
+        <div class="box-title">⚡ CloudFront &nbsp;<span class="box-tag">CDN</span></div>
+        <div class="box-desc">A network of servers around the globe. If you're in Mumbai, your images load from a Mumbai copy — not a server in the US. Handles <strong>99% of file requests</strong> without touching the main server.</div>
+      </div>
+      <div class="box s3" style="max-width:220px">
+        <div class="box-title">🪣 S3 Bucket &nbsp;<span class="box-tag">Storage</span></div>
+        <div class="box-desc">Amazon's file storage. All the HTML, CSS, JS, images live here. CloudFront reads from S3 and caches them near users.</div>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-tip"></div>
+      <div class="arrow-label">API requests only (/api/*)</div>
+    </div>
+
+    <!-- EC2 group -->
+    <div class="ec2-group">
+      <div class="ec2-label">🖥️ EC2 Instance — your main server (t3.medium)</div>
+
+      <!-- Nginx -->
+      <div class="box nginx">
+        <div class="box-title">🚦 Nginx &nbsp;<span class="box-tag">Gatekeeper</span></div>
+        <div class="box-desc">The front door of the server. Does 3 jobs: (1) handles HTTPS/SSL so the connection is encrypted, (2) blocks attackers who send too many requests (rate limiting), (3) forwards the request to the right app.</div>
+      </div>
+
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-tip"></div></div>
+
+      <!-- NestJS + Next.js -->
+      <div class="row">
+        <div class="box nestjs">
+          <div class="box-title">⚙️ NestJS API &nbsp;<span class="box-tag">Backend :3001</span></div>
+          <div class="box-desc">The brain. Handles all <span class="badge">/api/*</span> requests: login, progress saves, fetching problems. Speaks to the database. Runs in a Docker container.</div>
+        </div>
+        <div class="box nextjs">
+          <div class="box-title">🖼️ Next.js &nbsp;<span class="box-tag">Frontend :3000</span></div>
+          <div class="box-desc">Renders the pages for the browser. Can do Server-Side Rendering (builds the page on the server) or Static pages. Also in Docker.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-tip"></div>
+      <div class="arrow-label">secure connection (VPC peering)</div>
+    </div>
+
+    <!-- MongoDB -->
+    <div class="box mongo">
+      <div class="box-title">🍃 MongoDB Atlas &nbsp;<span class="box-tag">Database</span></div>
+      <div class="box-desc">The memory of the app. Stores users, problems, your progress. Runs as a <strong>3-node Replica Set</strong> — meaning 3 copies of the data exist. If one server dies, another takes over instantly. <strong>No data loss.</strong></div>
+    </div>
+
+  </div><!-- /aws-group -->
+
+  <div class="arrow">
+    <div class="arrow-line"></div>
+    <div class="arrow-tip"></div>
+    <div class="arrow-label">push to main → auto-deploy</div>
+  </div>
+
+  <!-- CI/CD -->
+  <div class="row">
+    <div class="box github">
+      <div class="box-title">🐙 GitHub Actions &nbsp;<span class="box-tag">CI/CD</span></div>
+      <div class="box-desc">When a developer pushes code, this runs automatically: tests it, builds it, and deploys it to AWS. Zero manual steps.</div>
+    </div>
+    <div class="box ecr" style="max-width:220px">
+      <div class="box-title">📦 ECR &nbsp;<span class="box-tag">Docker Registry</span></div>
+      <div class="box-desc">Amazon's private Docker image store. GitHub Actions builds a container image and pushes it here. EC2 pulls the latest image on deploy.</div>
+    </div>
+  </div>
+
+</div><!-- /diagram -->
+
+<br>
+
+<!-- ────────────── HOW WE HANDLE 1M USERS ────────────── -->
+<div class="annotation">
+  <h2>🚀 How This Handles 1,000,000 Users</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="icon">⚡</div>
+      <h3>CloudFront takes the hit</h3>
+      <p>Static files (HTML, CSS, JS) are served from 200+ edge locations worldwide. 99% of traffic never reaches your EC2 server at all.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🧱</div>
+      <h3>Stateless API = horizontal scale</h3>
+      <p>The NestJS server holds zero memory of users between requests. Need more capacity? Just clone the EC2 and put a Load Balancer in front. No code changes needed.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔑</div>
+      <h3>JWT — no session storage</h3>
+      <p>Your login token lives in your browser. The server doesn't store who is logged in. This means any server in the cluster can answer any request.</p>
+    </div>
+    <div class="card">
+      <div class="icon">📇</div>
+      <h3>Database indexes</h3>
+      <p>MongoDB has indexes on all key fields (email, topicId, userId+problemId). Finding a record in a 10M-row table takes microseconds, not seconds.</p>
+    </div>
+    <div class="card">
+      <div class="icon">⚛️</div>
+      <h3>Optimistic UI</h3>
+      <p>When you tick a checkbox, the UI updates instantly before the server responds. Even on a slow connection it feels instant.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🚦</div>
+      <h3>Rate limiting at the gate</h3>
+      <p>Nginx blocks any IP that sends more than 20 login requests/minute. Bots and attackers can't flood the server.</p>
+    </div>
+    <div class="card">
+      <div class="icon">♻️</div>
+      <h3>MongoDB Replica Set</h3>
+      <p>3 database copies. Reads can be served from any replica — spreading load. If the primary fails, a new primary is elected in seconds.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🗂️</div>
+      <h3>CDN Cache headers</h3>
+      <p>Static files are cached for 1 year (<code>max-age=31536000, immutable</code>). Once a user downloads them, their browser never re-downloads them until the filename changes.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────── REQUEST JOURNEY ────────────── -->
+<div class="flow">
+  <h2>🚶 Journey of a Single Request: "Mark problem as solved"</h2>
+  <div class="flow-steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>You click the checkbox</h4>
+        <p>UI updates immediately (optimistic update). You don't wait for the server — it feels instant.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Browser sends <span class="badge">POST /api/v1/progress/toggle</span> to CloudFront</h4>
+        <p>The request travels to the nearest CloudFront edge. For API calls, CloudFront forwards to EC2 (it doesn't cache API responses).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Nginx receives the request</h4>
+        <p>Checks: Is this IP rate-limited? Is SSL valid? Then forwards to NestJS on port 3001.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>NestJS validates your JWT token</h4>
+        <p>Reads your token, checks it's not expired, identifies your userId. No database call needed — the token is self-contained.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>MongoDB upsert in one write</h4>
+        <p>Looks up <span class="badge">{userId, problemId}</span> via compound index (super fast). Writes "completed = true" in a single atomic operation. No duplicates possible.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h4>Response travels back</h4>
+        <p>NestJS → Nginx → CloudFront → Your browser. The UI was already updated at step 1, so you see nothing change. If the server failed, the checkbox would revert.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────── CI/CD PIPELINE ────────────── -->
+<div class="flow">
+  <h2>🔄 Deployment Pipeline — What Happens When You Push Code</h2>
+  <div class="flow-steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Developer pushes to <span class="badge">main</span> branch on GitHub</h4>
+        <p>GitHub Actions workflow triggers automatically.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>CI: lint + build check</h4>
+        <p>Every PR runs lint and build. Broken code cannot merge to main.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Frontend: Next.js build → S3 sync</h4>
+        <p>Builds the static site, uploads all files to S3 bucket. Then invalidates CloudFront cache so users get the new version immediately.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Backend: Docker image → ECR</h4>
+        <p>Builds a Docker container of the NestJS API, pushes it to Amazon's container registry (ECR).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>EC2: SSH in, pull new image, restart</h4>
+        <p>GitHub Actions SSHs into the EC2 server, pulls the new Docker image from ECR, and restarts the container. <strong>Zero code touches the server manually.</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// helper script placeholder (server injects this)
+</script>
+</body>
+</html>
